@@ -418,7 +418,11 @@ app.get("/api/categorie", autentica, async (req, res) => {
 });
 
 // ---------------------------------------------------------------
-// Richieste
+// RICHIESTE - GET
+// ---------------------------------------------------------------
+
+// ---------------------------------------------------------------
+// GET `/api/richieste`  Elenco richieste (dipendente: solo le proprie)
 // ---------------------------------------------------------------
 
 app.get("/api/richieste", autentica, async (req, res) => {
@@ -446,6 +450,97 @@ app.get("/api/richieste", autentica, async (req, res) => {
   const { rows } = await pool.query(query, params);
 
   res.json(rows);
+});
+
+// ---------------------------------------------------------------
+// GET `/api/richieste/da-approvare` Elenco richieste "In attesa"
+// ---------------------------------------------------------------
+
+app.get(
+  "/api/richieste/da-approvare",
+  autentica,
+  soloResponsabili,
+  async (req, res) => {
+    let query = `
+  SELECT 
+    rp.richiesta_id , 
+    r.nome || ' ' || r.cognome as richiedente, 
+    rp.data_richiesta, 
+    rp.data_inizio, rp.data_fine, 
+    rp.motivazione, rp.stato, 
+    rp.utente_valutazione_id, 
+    cp.descrizione as categoria 
+  FROM richieste_permesso rp
+  JOIN utenti r on r.utente_id = rp.utente_id 
+  JOIN categorie_permesso cp ON cp.categoria_id = rp.categoria_id
+  WHERE rp.stato = 'In attesa'`;
+
+    const { rows } = await pool.query(query);
+
+    res.json(rows);
+  },
+);
+
+// ---------------------------------------------------------------
+// GET  `/api/richieste/:id`  Dettaglio di una richiesta
+// ---------------------------------------------------------------
+
+app.get("/api/richieste/:id", autentica, async (req, res) => {
+  let query = `
+  SELECT 
+    rp.richiesta_id , 
+    r.nome || ' ' || r.cognome as richiedente, 
+    rp.data_richiesta, 
+    rp.data_inizio, rp.data_fine, 
+    rp.motivazione, rp.stato, 
+    rp.utente_valutazione_id, 
+    cp.descrizione as categoria 
+  FROM richieste_permesso rp
+  JOIN utenti r on r.utente_id = rp.utente_id 
+  JOIN categorie_permesso cp ON cp.categoria_id = rp.categoria_id
+  WHERE rp.richiesta_id = $1`;
+
+  let params = [];
+
+  params.push(req.params.id);
+
+  if (req.utente.ruolo === "Dipendente") {
+    query += ` AND rp.utente_id = $2`;
+    params.push(req.utente.id);
+  }
+
+  const { rows } = await pool.query(query, params);
+
+  if (rows.length === 0) {
+    res.status(404).json({
+      errore: "Risorsa non trovata",
+    });
+  } else {
+    res.json(rows[0]);
+  }
+});
+
+// ---------------------------------------------------------------
+// RICHIESTE - POST
+// ---------------------------------------------------------------
+
+app.post("/api/richieste", autentica, async (req, res) => {
+  let query = `
+  INSERT INTO richieste_permesso (data_inizio, data_fine, motivazione, categoria_id, utente_id) VALUES (
+  $1, $2, $3, $4, $5)
+  RETURNING richiesta_id, data_inizio, data_fine, motivazione, stato`;
+
+  let params = [
+    req.body.data_inizio,
+    req.body.data_fine,
+    req.body.motivazione,
+    req.body.categoria_id,
+    req.utente.id,
+  ];
+
+  const { rows } = await pool.query(query, params);
+
+  res.status(201).json(rows[0]);
 });
 
 // ---------------------------------------------------------------

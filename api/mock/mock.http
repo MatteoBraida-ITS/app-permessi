@@ -5,7 +5,7 @@
 @baseUrl = http://localhost:3000/api
 
 # Credenziali di un utente dei dati di test (db/seed.sql)
-@email = laura.bianchi@azienda.example
+@email = giulia.verdi@azienda.example
 @password = Password123!
 
 # Token restituito dall'ultimo login: esegui prima la richiesta di login.
@@ -105,7 +105,30 @@ GET {{baseUrl}}/categorie
 Authorization: Bearer {{token}}
 Accept: application/json
 
-###GET richieste
+###GET `/api/richieste`  Elenco richieste (dipendente: solo le proprie)
 GET {{baseUrl}}/richieste
 Authorization: Bearer {{token}}
 Accept: application/json 
+
+###GET  `/api/richieste/:id`  Dettaglio di una richiesta
+GET {{baseUrl}}/richieste/17
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###GET `/api/richieste/da-approvare` Elenco richieste "In attesa"
+GET {{baseUrl}}/richieste/da-approvare
+Authorization: Bearer {{token}}
+Accept: application/json 
+
+### Crea nuova richiesta di permesso
+POST {{baseUrl}}/richieste
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "data_inizio": "2026-12-10",
+  "data_fine": "2026-12-12",
+  "categoria_id": 1,
+  "motivazione": "Vacanza di prova"
+}
