@@ -16,6 +16,8 @@ import crypto from "node:crypto";
 import bcrypt from "bcryptjs"; // stessa API di 'bcrypt', ma in puro JavaScript: non richiede compilazione
 import pg from "pg";
 import jwt from "jsonwebtoken";
+import { error } from "node:console";
+import { type } from "node:os";
 
 const { Pool } = pg;
 
@@ -525,22 +527,72 @@ app.get("/api/richieste/:id", autentica, async (req, res) => {
 // ---------------------------------------------------------------
 
 app.post("/api/richieste", autentica, async (req, res) => {
-  let query = `
+  const {data_inizio, data_fine, motivazione, categoria_id} = req.body ?? {};
+  const formatoData = /^\d{4}-\d{2}-\d{2}$/;
+
+  const query = `
   INSERT INTO richieste_permesso (data_inizio, data_fine, motivazione, categoria_id, utente_id) VALUES (
   $1, $2, $3, $4, $5)
   RETURNING richiesta_id, data_inizio, data_fine, motivazione, stato`;
 
-  let params = [
-    req.body.data_inizio,
-    req.body.data_fine,
-    req.body.motivazione,
-    req.body.categoria_id,
+  if ( typeof motivazione !== "string") {
+    return res.status(400).json({
+      errore:"La motivazione è obbligatoria"
+    });
+  }
+
+  const motivazionePulita = motivazione.trim();
+
+  if (motivazionePulita === "") {
+    return res.status(400).json({errore: "La motivazione non può essere vuota"});
+  }
+
+  if ( !Number.isInteger(categoria_id) || categoria_id <= 0 ) {
+    return res.status(400).json({
+      errore: "La categoria è errata"
+    });
+  }
+
+  if (typeof data_fine !== "string" ||
+      typeof data_inizio !== "string") {
+        return res.status(400).json({
+          errore:"La data di inizio e di fine sono obbligatorie"
+        });
+  }
+
+  if (!formatoData.test(data_fine) || !formatoData.test(data_inizio) ) {
+    return res.status(400).json({
+      errore:"Formato data non valido"
+    });
+  }
+
+  if (data_fine < data_inizio) {
+    return res.status(400).json({
+      errore: "Le date non sono corrette"
+    });
+  }
+
+  const params = [
+    data_inizio,
+    data_fine,
+    motivazionePulita,
+    categoria_id,
     req.utente.id,
   ];
 
-  const { rows } = await pool.query(query, params);
 
-  res.status(201).json(rows[0]);
+  try {
+    const { rows } = await pool.query(query, params);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === "23503") {
+      return res.status(400).json({ errore: "Categoria non valida" });
+    }
+    if (err.code === "22008") {
+      return res.status(400).json({ errore: "Data inesistente"});
+    }
+    throw err; // gestito dal middleware centrale degli errori
+  }
 });
 
 // ---------------------------------------------------------------

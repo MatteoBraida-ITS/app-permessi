@@ -39,6 +39,12 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 - `POST /api/utenti/register`: `{ nome, cognome, email, password }`, validati. Il ruolo non viene mai preso dal client. Risponde 201 `{ id, nome, cognome, email, ruolo }`, 409 se l'email esiste già.
 - `POST /api/utenti/login`: cerca con `lower(email) = lower($1)`. Risponde 200 `{ token, utente: { id, email, ruolo } }`, 401 "Credenziali non valide". Il payload JWT è `{ sub, ruolo }`.
 - `GET /api/utenti/me` (autenticata): `{ id, nome, cognome, email, ruolo }`.
+- `GET /api/categorie` (autenticata).
+- `GET /api/richieste` (dipendente: solo le proprie), `GET /api/richieste/:id`, `GET /api/richieste/da-approvare` (`autentica` + `soloResponsabili`).
+- `POST /api/richieste` (autenticata), scritta dall'utente passo per passo: `{ data_inizio, data_fine, categoria_id, motivazione }`.
+  - Valida motivazione (stringa, `trim()` non vuoto), `categoria_id` (intero > 0), date (stringhe `AAAA-MM-GG`, `data_fine >= data_inizio`).
+  - Nel `catch`: `23503` (categoria inesistente) e `22008` (data inesistente) → 400, il resto `throw err`.
+  - `utente_id` preso dal token. Risponde 201 `{ richiesta_id, data_inizio, data_fine, motivazione, stato }`.
 - `GET /api/esempi/hash?testo=` restituisce md5, sha256 e bcrypt. `POST /api/esempi/hash/verifica` riceve `{ testo, hash }` e risponde `{ valido }`.
 - Resti del vecchio playground ancora presenti:
   - `/api/esempi/ricerca-sicura` e `/ricerca-vulnerabile` usano le colonne `id` e `attivo`, che non esistono più, quindi sono rotte rotte;
@@ -64,13 +70,15 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 - `/api/esempi/hash` con `?testo=a&testo=b` va in 500.
 - bcrypt usa solo i primi 72 byte della password e non c'è un limite massimo di lunghezza.
 - Il commento in testa a `server.js` descrive ancora la vecchia tabella `utenti` del playground (colonne `id` e `attivo`).
+- Le colonne `DATE` vengono restituite come `Date` JS e serializzate in UTC: `2026-12-23` diventa `"2026-12-22T23:00:00.000Z"` (vale per tutte le rotte delle richieste).
+- Sul sistema c'è Node 22.23, non Node 24.
 
 ## Prossimi passi (dalla traccia)
 
-1. `GET /api/categorie` (autenticata).
-2. CRUD su `/api/richieste`:
+1. ~~`GET /api/categorie`~~ (fatto).
+2. CRUD su `/api/richieste` (GET e POST fatti, mancano `PUT` e `DELETE /:id`):
    - il dipendente vede, crea, modifica ed elimina solo le proprie richieste, e solo se "In attesa";
    - il responsabile vede tutte le richieste e può cancellare anche quelle approvate.
-3. `GET /api/richieste/da-approvare`, `PUT /api/richieste/:id/approva` e `PUT /api/richieste/:id/rifiuta`, con `autentica` + `soloResponsabili`. Vanno impostati `data_valutazione` e `utente_valutazione_id`.
+3. `GET /api/richieste/da-approvare` (fatto), `PUT /api/richieste/:id/approva` e `PUT /api/richieste/:id/rifiuta`, con `autentica` + `soloResponsabili`. Vanno impostati `data_valutazione` e `utente_valutazione_id`.
 4. Endpoint delle statistiche (solo responsabili): giorni approvati per dipendente e mese, con filtri opzionali. Prima va deciso con l'utente se contare i giorni di calendario o quelli lavorativi e come trattare le richieste a cavallo di due mesi.
 5. Poi: frontend CSR, eventuale Swagger, deployment.

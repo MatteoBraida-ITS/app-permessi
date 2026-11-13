@@ -188,9 +188,12 @@ Ogni dipendente con richieste ne ha almeno una in attesa, quindi modificabile o 
 - [x] Schema del database e dati di test
 - [x] Registrazione (`POST /api/utenti/register`) e login con token JWT (`POST /api/utenti/login`)
 - [x] Middleware `autentica` che verifica il token JWT, usato da `GET /api/utenti/me`
-- [x] Middleware `richiediRuolo` / `soloResponsabili` per le rotte riservate ai responsabili (ancora da applicare alle rotte)
-- [ ] API delle richieste e delle categorie: `api/server.js` contiene ancora anche le rotte di esempio del playground
-- [ ] Strumento per il test dell'API: `api/mock/mock.http` con REST Client (health, registrazione, login, utente collegato, esempio hash)
+- [x] Middleware `richiediRuolo` / `soloResponsabili` per le rotte riservate ai responsabili, usato da `GET /api/richieste/da-approvare`
+- [x] API delle categorie: `GET /api/categorie`
+- [x] API delle richieste, lettura e creazione: `GET /api/richieste`, `GET /api/richieste/:id`, `GET /api/richieste/da-approvare` (solo responsabili), `POST /api/richieste` (con validazione dei campi)
+- [ ] API delle richieste, modifica, eliminazione e valutazione: `PUT` e `DELETE /api/richieste/:id`, `PUT /api/richieste/:id/approva`, `PUT /api/richieste/:id/rifiuta`
+- [ ] Pulizia di `api/server.js`: contiene ancora le rotte di esempio del playground
+- [x] Strumento per il test dell'API: `api/mock/mock.http` con REST Client (health, registrazione, login, utente collegato, esempio hash, categorie, richieste)
 - [ ] Frontend
 - [ ] Statistiche per i responsabili (requisito avanzato)
 - [ ] Deployment
