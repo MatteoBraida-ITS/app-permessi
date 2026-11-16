@@ -523,11 +523,43 @@ app.get("/api/richieste/:id", autentica, async (req, res) => {
 });
 
 // ---------------------------------------------------------------
+// GET (/api/statistiche) Giorni approvati per dipendente e mese, con filtri
+// ---------------------------------------------------------------
+
+app.get("/api/statistiche/", autentica, soloResponsabili, async (req, res) => {
+  let query = `
+  SELECT 
+        r.nome || ' ' || r.cognome as richiedente,
+  SUM(rp.data_fine - rp.data_inizio + 1) AS giorni, 
+  TO_CHAR(data_inizio, 'YYYY-MM') AS mese
+  FROM richieste_permesso rp 
+  JOIN utenti r on r.utente_id = rp.utente_id 
+  WHERE stato = 'Approvato'`;
+
+  let params = [];
+
+  if (req.query.utente_id) {
+    params.push(req.query.utente_id);
+    query += ` AND rp.utente_id = $${params.length}`;
+  }
+
+  if (req.query.mese) {
+    params.push(req.query.mese);
+    query += ` AND TO_CHAR(data_inizio, 'YYYY-MM') = $${params.length}`;
+  }
+
+  query += ` GROUP BY r.nome, r.cognome, TO_CHAR(data_inizio, 'YYYY-MM')`;
+
+  const { rows } = await pool.query(query, params);
+  res.status(200).json(rows);
+});
+
+// ---------------------------------------------------------------
 // RICHIESTE - POST
 // ---------------------------------------------------------------
 
 app.post("/api/richieste", autentica, async (req, res) => {
-  const {data_inizio, data_fine, motivazione, categoria_id} = req.body ?? {};
+  const { data_inizio, data_fine, motivazione, categoria_id } = req.body ?? {};
   const formatoData = /^\d{4}-\d{2}-\d{2}$/;
 
   const query = `
@@ -535,40 +567,41 @@ app.post("/api/richieste", autentica, async (req, res) => {
   $1, $2, $3, $4, $5)
   RETURNING richiesta_id, data_inizio, data_fine, motivazione, stato`;
 
-  if ( typeof motivazione !== "string") {
+  if (typeof motivazione !== "string") {
     return res.status(400).json({
-      errore:"La motivazione è obbligatoria"
+      errore: "La motivazione è obbligatoria",
     });
   }
 
   const motivazionePulita = motivazione.trim();
 
   if (motivazionePulita === "") {
-    return res.status(400).json({errore: "La motivazione non può essere vuota"});
+    return res
+      .status(400)
+      .json({ errore: "La motivazione non può essere vuota" });
   }
 
-  if ( !Number.isInteger(categoria_id) || categoria_id <= 0 ) {
+  if (!Number.isInteger(categoria_id) || categoria_id <= 0) {
     return res.status(400).json({
-      errore: "La categoria è errata"
+      errore: "La categoria è errata",
     });
   }
 
-  if (typeof data_fine !== "string" ||
-      typeof data_inizio !== "string") {
-        return res.status(400).json({
-          errore:"La data di inizio e di fine sono obbligatorie"
-        });
+  if (typeof data_fine !== "string" || typeof data_inizio !== "string") {
+    return res.status(400).json({
+      errore: "La data di inizio e di fine sono obbligatorie",
+    });
   }
 
-  if (!formatoData.test(data_fine) || !formatoData.test(data_inizio) ) {
+  if (!formatoData.test(data_fine) || !formatoData.test(data_inizio)) {
     return res.status(400).json({
-      errore:"Formato data non valido"
+      errore: "Formato data non valido",
     });
   }
 
   if (data_fine < data_inizio) {
     return res.status(400).json({
-      errore: "Le date non sono corrette"
+      errore: "Le date non sono corrette",
     });
   }
 
@@ -580,7 +613,6 @@ app.post("/api/richieste", autentica, async (req, res) => {
     req.utente.id,
   ];
 
-
   try {
     const { rows } = await pool.query(query, params);
     res.status(201).json(rows[0]);
@@ -589,11 +621,298 @@ app.post("/api/richieste", autentica, async (req, res) => {
       return res.status(400).json({ errore: "Categoria non valida" });
     }
     if (err.code === "22008") {
-      return res.status(400).json({ errore: "Data inesistente"});
+      return res.status(400).json({ errore: "Data inesistente" });
     }
     throw err; // gestito dal middleware centrale degli errori
   }
 });
+
+// ---------------------------------------------------------------
+// RICHIESTE - PUT (/api/richieste/:id)
+// ---------------------------------------------------------------
+
+app.put("/api/richieste/:id", autentica, async (req, res) => {
+  const { data_inizio, data_fine, motivazione, categoria_id } = req.body ?? {};
+  const formatoData = /^\d{4}-\d{2}-\d{2}$/;
+
+  let query = `
+  SELECT 
+    richiesta_id, 
+    utente_id, 
+    stato
+  FROM richieste_permesso 
+  WHERE richiesta_id = $1`;
+
+  let params = [];
+
+  params.push(req.params.id);
+
+  const { rows } = await pool.query(query, params);
+
+  if (rows.length === 0) {
+    return res.status(404).json({ errore: "Richiesta non trovata" });
+  }
+
+  if (rows[0].utente_id !== req.utente.id) {
+    return res.status(403).json({ errore: "Permesso negato" });
+  }
+
+  if (rows[0].stato !== "In attesa") {
+    return res
+      .status(400)
+      .json({ errore: "Richiesta già approvata o rifiutata" });
+  }
+
+  params = [
+    req.body.data_inizio,
+    req.body.data_fine,
+    req.body.motivazione,
+    req.body.categoria_id,
+    req.params.id,
+  ];
+
+  if (typeof motivazione !== "string") {
+    return res.status(400).json({
+      errore: "La motivazione è obbligatoria",
+    });
+  }
+
+  const motivazionePulita = motivazione.trim();
+
+  if (motivazionePulita === "") {
+    return res
+      .status(400)
+      .json({ errore: "La motivazione non può essere vuota" });
+  }
+
+  if (!Number.isInteger(categoria_id) || categoria_id <= 0) {
+    return res.status(400).json({
+      errore: "La categoria è errata",
+    });
+  }
+
+  if (typeof data_fine !== "string" || typeof data_inizio !== "string") {
+    return res.status(400).json({
+      errore: "La data di inizio e di fine sono obbligatorie",
+    });
+  }
+
+  if (!formatoData.test(data_fine) || !formatoData.test(data_inizio)) {
+    return res.status(400).json({
+      errore: "Formato data non valido",
+    });
+  }
+
+  if (data_fine < data_inizio) {
+    return res.status(400).json({
+      errore: "Le date non sono corrette",
+    });
+  }
+
+  query = `
+  UPDATE richieste_permesso 
+  SET data_inizio = $1, data_fine = $2, motivazione = $3, categoria_id = $4
+  WHERE richiesta_id = $5
+  RETURNING richiesta_id, data_inizio, data_fine, motivazione, stato`;
+
+  try {
+    const risultato = await pool.query(query, params);
+    res.status(200).json(risultato.rows[0]);
+  } catch (err) {
+    if (err.code === "23503") {
+      return res.status(400).json({ errore: "Categoria non valida" });
+    }
+    if (err.code === "22008") {
+      return res.status(400).json({ errore: "Data inesistente" });
+    }
+    throw err; // gestito dal middleware centrale degli errori
+  }
+});
+
+// ---------------------------------------------------------------
+// RICHIESTE - DELETE (/api/richieste/:id)
+// ---------------------------------------------------------------
+
+app.delete("/api/richieste/:id", autentica, async (req, res) => {
+  let query = `
+  SELECT 
+    richiesta_id, 
+    utente_id, 
+    stato
+  FROM richieste_permesso 
+  WHERE richiesta_id = $1`;
+
+  let params = [];
+
+  params.push(req.params.id);
+
+  const { rows } = await pool.query(query, params);
+
+  if (rows.length === 0) {
+    return res.status(404).json({ errore: "Richiesta non trovata" });
+  }
+
+  if (req.utente.ruolo === "Responsabile") {
+    if (rows[0].stato === "Rifiutato") {
+      return res
+        .status(400)
+        .json({ errore: "Impossibile eliminare richieste già rifiutate" });
+    }
+  } else {
+    if (rows[0].utente_id !== req.utente.id) {
+      return res.status(403).json({ errore: "Permesso negato" });
+    }
+
+    if (rows[0].stato !== "In attesa") {
+      return res
+        .status(400)
+        .json({ errore: "Richiesta già approvata o rifiutata" });
+    }
+  }
+
+  query = `
+    DELETE FROM richieste_permesso 
+    WHERE richiesta_id = $1`;
+
+  const risposta = await pool.query(query, params);
+
+  res.status(200).json({ Successo: "Richiesta eliminata correttamente" });
+});
+
+// ---------------------------------------------------------------
+// RICHIESTE - PUT (/api/richieste/:id/approva)	Approva una richiesta
+// ---------------------------------------------------------------
+
+app.put(
+  "/api/richieste/:id/approva",
+  autentica,
+  soloResponsabili,
+  async (req, res) => {
+    let query = `
+  SELECT 
+    richiesta_id, 
+    utente_id, 
+    stato
+  FROM richieste_permesso 
+  WHERE richiesta_id = $1`;
+
+    let params = [req.params.id];
+
+    const { rows } = await pool.query(query, params);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ errore: "Richiesta non trovata" });
+    }
+
+    if (rows[0].stato !== "In attesa") {
+      return res.status(400).json({
+        errore: "Richiesta già approvata/rifiutata",
+      });
+    }
+
+    params = [req.utente.id, req.params.id];
+
+    query = `
+    UPDATE richieste_permesso
+    SET stato = 'Rifiutato', data_valutazione = CURRENT_DATE, utente_valutazione_id = $1
+    WHERE richiesta_id = $2
+    RETURNING stato, data_valutazione, utente_valutazione_id`;
+
+    const risultato = await pool.query(query, params);
+
+    res.status(200).json({ Successo: "Richiesta approvata" });
+  },
+);
+
+// ---------------------------------------------------------------
+// RICHIESTE - PUT (/api/richieste/:id/approva)	Approva una richiesta
+// ---------------------------------------------------------------
+
+app.put(
+  "/api/richieste/:id/rifiuta",
+  autentica,
+  soloResponsabili,
+  async (req, res) => {
+    let query = `
+  SELECT 
+    richiesta_id, 
+    utente_id, 
+    stato
+  FROM richieste_permesso 
+  WHERE richiesta_id = $1`;
+
+    let params = [req.params.id];
+
+    const { rows } = await pool.query(query, params);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ errore: "Richiesta non trovata" });
+    }
+
+    if (rows[0].stato !== "In attesa") {
+      return res.status(400).json({
+        errore: "Richiesta già approvata/rifiutata",
+      });
+    }
+
+    params = [req.utente.id, req.params.id];
+
+    query = `
+    UPDATE richieste_permesso
+    SET stato = 'Rifiutato', data_valutazione = CURRENT_DATE, utente_valutazione_id = $1
+    WHERE richiesta_id = $2
+    RETURNING stato, data_valutazione, utente_valutazione_id`;
+
+    const risultato = await pool.query(query, params);
+
+    res.status(200).json({ Successo: "Richiesta approvata" });
+  },
+);
+
+// ---------------------------------------------------------------
+// RICHIESTE - PUT (/api/richieste/:id/rifiuta)	Rifiuta una richiesta
+// ---------------------------------------------------------------
+
+app.put(
+  "/api/richieste/:id/rifiuta",
+  autentica,
+  soloResponsabili,
+  async (req, res) => {
+    let query = `
+  SELECT 
+    richiesta_id, 
+    utente_id, 
+    stato
+  FROM richieste_permesso 
+  WHERE richiesta_id = $1`;
+
+    let params = [req.params.id];
+
+    const { rows } = await pool.query(query, params);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ errore: "Richiesta non trovata" });
+    }
+
+    if (rows[0].stato !== "In attesa") {
+      return res.status(400).json({
+        errore: "Richiesta già approvata/rifiutata",
+      });
+    }
+
+    params = [req.utente.id, req.params.id];
+
+    query = `
+    UPDATE richieste_permesso
+    SET stato = 'Rifiutato', data_valutazione = CURRENT_DATE, utente_valutazione_id = $1
+    WHERE richiesta_id = $2
+    RETURNING stato, data_valutazione, utente_valutazione_id`;
+
+    const risultato = await pool.query(query, params);
+
+    res.status(200).json({ Successo: "Richiesta rifiutata" });
+  },
+);
 
 // ---------------------------------------------------------------
 // Gestione degli errori
