@@ -40,7 +40,7 @@ function Login() {
   return (
     <div className="flex items-center min-h-screen justify-center p-4">
       <Card className="w-full max-w-sm">
-        <CardHeader>
+        <CardHeader className="flex justify-center">
           <CardTitle>Accedi</CardTitle>
         </CardHeader>
         <CardContent>
