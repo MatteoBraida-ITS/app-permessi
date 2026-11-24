@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Link } from "react-router";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -67,6 +68,9 @@ function Login() {
             <Button type="submit" disabled={caricamento}>
               Login
             </Button>
+            <Link to="/registrazione" className="hover:underline">
+              Non hai un account? Registrati
+            </Link>
           </form>
         </CardContent>
       </Card>

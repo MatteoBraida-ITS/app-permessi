@@ -7,7 +7,7 @@ La traccia completa è in [`traccia-esame.md`](traccia-esame.md).
 
 ## Struttura del progetto
 
-Il progetto è un monorepo: backend, database e (in futuro) frontend vivono nello stesso repository, in cartelle separate.
+Il progetto è un monorepo: backend, database e frontend vivono nello stesso repository, in cartelle separate.
 
 ```
 app-permessi/
@@ -19,6 +19,13 @@ app-permessi/
 │   ├── .env.example       variabili d'ambiente da copiare in .env
 │   └── mock/
 │       └── mock.http      richieste di prova per l'estensione REST Client
+├── frontend/              React con Vite, Tailwind CSS, shadcn/ui e React Router
+│   ├── vite.config.js     alias @ → src e proxy /api verso il backend
+│   └── src/
+│       ├── main.jsx       avvia React dentro BrowserRouter
+│       ├── App.jsx        elenco delle pagine (Routes)
+│       ├── pages/         Login.jsx, Registrazione.jsx
+│       └── components/ui/ componenti generati da shadcn/ui
 ├── db/
 │   ├── schema.sql         creazione delle tabelle
 │   ├── seed.sql           dati di test
@@ -32,6 +39,7 @@ app-permessi/
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Node.js 20 o superiore
+- [pnpm](https://pnpm.io/) per il frontend
 
 ## Avvio
 
@@ -80,6 +88,26 @@ L'API risponde su http://localhost:3000. Per verificare la connessione al databa
 ```bash
 curl http://localhost:3000/api/salute
 ```
+
+### 3. Frontend
+
+Con l'API già avviata, in un altro terminale:
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+Il frontend risponde su http://localhost:5173. Vite inoltra all'API su `localhost:3000`
+tutte le chiamate che iniziano con `/api` (il proxy è in `vite.config.js`),
+quindi nel codice basta scrivere `fetch("/api/...")`.
+
+| Indirizzo        | Pagina                                  |
+|------------------|-----------------------------------------|
+| `/`              | reindirizza a `/login`                  |
+| `/login`         | accesso: salva il token in `localStorage` |
+| `/registrazione` | creazione di un nuovo account Dipendente |
 
 ## Test dell'API con REST Client
 
@@ -137,8 +165,6 @@ Sopra ogni richiesta compare il link **Send Request**: cliccalo e la risposta si
 Con `# @name login` si dà un nome alla richiesta, così le richieste successive possono leggerne la risposta,
 per esempio il token con `{{login.response.body.token}}`.
 
-> `/api/richieste` è ancora da implementare: l'esempio mostra come usare il token restituito dal login.
-
 ## Comandi utili
 
 | Comando                                | Effetto                                                        |
@@ -191,9 +217,13 @@ Ogni dipendente con richieste ne ha almeno una in attesa, quindi modificabile o 
 - [x] Middleware `richiediRuolo` / `soloResponsabili` per le rotte riservate ai responsabili, usato da `GET /api/richieste/da-approvare`
 - [x] API delle categorie: `GET /api/categorie`
 - [x] API delle richieste, lettura e creazione: `GET /api/richieste`, `GET /api/richieste/:id`, `GET /api/richieste/da-approvare` (solo responsabili), `POST /api/richieste` (con validazione dei campi)
-- [ ] API delle richieste, modifica, eliminazione e valutazione: `PUT` e `DELETE /api/richieste/:id`, `PUT /api/richieste/:id/approva`, `PUT /api/richieste/:id/rifiuta`
+- [x] API delle richieste, modifica ed eliminazione: `PUT /api/richieste/:id` (solo le proprie richieste in attesa), `DELETE /api/richieste/:id` (dipendente: solo le proprie in attesa; responsabile: anche quelle approvate)
+- [x] API delle richieste, valutazione (solo responsabili): `PUT /api/richieste/:id/approva` e `PUT /api/richieste/:id/rifiuta`, che registrano anche la data della valutazione e il responsabile che l'ha fatta
+- [x] API delle statistiche (solo responsabili): `GET /api/statistiche`, giorni approvati per dipendente e mese, con filtri facoltativi `?utente_id=` e `?mese=AAAA-MM`. Si contano i giorni di calendario, e una richiesta a cavallo di due mesi viene contata nel mese di inizio
 - [ ] Pulizia di `api/server.js`: contiene ancora le rotte di esempio del playground
 - [x] Strumento per il test dell'API: `api/mock/mock.http` con REST Client (health, registrazione, login, utente collegato, esempio hash, categorie, richieste)
-- [ ] Frontend
-- [ ] Statistiche per i responsabili (requisito avanzato)
+- [x] Frontend, impostazione: Vite + React, Tailwind CSS, shadcn/ui, React Router, proxy `/api` verso il backend
+- [x] Frontend, pagine di accesso: login (`/login`) e registrazione (`/registrazione`), con link dall'una all'altra
+- [ ] Frontend, dopo il login: passaggio alla pagina principale e pagine delle richieste, delle approvazioni e delle statistiche
+- [ ] Pagina delle statistiche per i responsabili nel frontend (requisito avanzato)
 - [ ] Deployment

@@ -44,8 +44,8 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "email": "{{email}}",
-  "password": "{{password}}"
+  "email": "giulia.verdi@azienda.example",
+  "password": "Password123!"
 }
 
 ### Esempio hash: MD5, SHA-256 e bcrypt dello stesso testo

@@ -814,52 +814,7 @@ app.put(
 
     query = `
     UPDATE richieste_permesso
-    SET stato = 'Rifiutato', data_valutazione = CURRENT_DATE, utente_valutazione_id = $1
-    WHERE richiesta_id = $2
-    RETURNING stato, data_valutazione, utente_valutazione_id`;
-
-    const risultato = await pool.query(query, params);
-
-    res.status(200).json({ Successo: "Richiesta approvata" });
-  },
-);
-
-// ---------------------------------------------------------------
-// RICHIESTE - PUT (/api/richieste/:id/approva)	Approva una richiesta
-// ---------------------------------------------------------------
-
-app.put(
-  "/api/richieste/:id/rifiuta",
-  autentica,
-  soloResponsabili,
-  async (req, res) => {
-    let query = `
-  SELECT 
-    richiesta_id, 
-    utente_id, 
-    stato
-  FROM richieste_permesso 
-  WHERE richiesta_id = $1`;
-
-    let params = [req.params.id];
-
-    const { rows } = await pool.query(query, params);
-
-    if (rows.length === 0) {
-      return res.status(404).json({ errore: "Richiesta non trovata" });
-    }
-
-    if (rows[0].stato !== "In attesa") {
-      return res.status(400).json({
-        errore: "Richiesta già approvata/rifiutata",
-      });
-    }
-
-    params = [req.utente.id, req.params.id];
-
-    query = `
-    UPDATE richieste_permesso
-    SET stato = 'Rifiutato', data_valutazione = CURRENT_DATE, utente_valutazione_id = $1
+    SET stato = 'Approvato', data_valutazione = CURRENT_DATE, utente_valutazione_id = $1
     WHERE richiesta_id = $2
     RETURNING stato, data_valutazione, utente_valutazione_id`;
 

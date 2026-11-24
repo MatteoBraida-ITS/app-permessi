@@ -16,6 +16,12 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 - `api/mock/mock.http`: richieste per l'estensione REST Client di VS Code (`humao.rest-client`).
   - Variabili (`@baseUrl`, `@email`, `@password`, `@token`) tutte in testa: niente righe tra il corpo di una richiesta e il `###` successivo, perché REST Client le spedirebbe nel corpo.
   - Contiene health, register (email con `{{$timestamp}}`), login (`# @name login`, poi `@token = {{login.response.body.token}}`), `/utenti/me` con e senza token, hash e verifica bcrypt (`# @name hashEsempio`).
+- `frontend/`: React 19 (JS) con Vite 8, Tailwind CSS v4, shadcn/ui (button, input, label, card) e `react-router` 8.5 in modalità dichiarativa. Si usa **pnpm**. Si avvia con `cd frontend && pnpm dev`, porta 5173.
+  - Alias `@` → `src` (`vite.config.js` e `jsconfig.json`). Proxy `/api` → `http://localhost:3000`, quindi le `fetch` usano percorsi relativi (`/api/...`).
+  - `main.jsx` avvolge `<App />` in `BrowserRouter`. `App.jsx` contiene `Routes`: `/` → `Navigate` a `/login`, `/login`, `/registrazione`.
+  - `pages/Login.jsx`: `POST /api/utenti/login`, salva il token in `localStorage` (chiave `token`). Dopo il login per ora fa solo `console.log`, perché manca una pagina di destinazione.
+  - `pages/Registrazione.jsx`: `POST /api/utenti/register`. Controlli lato client: `required`, `maxLength`, password di almeno 8 caratteri, conferma password. In caso di successo mostra una card con un pulsante che usa `useNavigate` per andare a `/login`.
+  - Gli errori dell'API si mostrano con `dati.errore`. ESLint segnala 4 errori nei file generati da shadcn in `components/ui/`: non vanno toccati.
 - `docs/`: spiegazioni per gli studenti, che conoscono le basi dei database.
   - `query-seed-richieste.md` spiega passo per passo l'`INSERT ... SELECT` delle richieste in `db/seed.sql`. Se cambi quella query, aggiorna anche questo file.
 - `.gitignore` in root: `node_modules/`, `.env`.
@@ -45,6 +51,18 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
   - Valida motivazione (stringa, `trim()` non vuoto), `categoria_id` (intero > 0), date (stringhe `AAAA-MM-GG`, `data_fine >= data_inizio`).
   - Nel `catch`: `23503` (categoria inesistente) e `22008` (data inesistente) → 400, il resto `throw err`.
   - `utente_id` preso dal token. Risponde 201 `{ richiesta_id, data_inizio, data_fine, motivazione, stato }`.
+- `PUT /api/richieste/:id` (autenticata): stesso corpo e stesse validazioni del POST.
+  - Prima legge la richiesta: 404 se non esiste, 403 se non è dell'utente collegato (vale anche per i responsabili), 400 se non è "In attesa".
+  - Risponde 200 con la riga aggiornata `{ richiesta_id, data_inizio, data_fine, motivazione, stato }`. `23503` e `22008` → 400.
+- `DELETE /api/richieste/:id` (autenticata): 404 se non esiste.
+  - Dipendente: solo le proprie (altrimenti 403) e solo "In attesa" (altrimenti 400).
+  - Responsabile: qualsiasi richiesta "In attesa" o "Approvata". 400 se è "Rifiutata".
+  - Risponde 200 `{ Successo: "Richiesta eliminata correttamente" }`.
+- `PUT /api/richieste/:id/approva` e `PUT /api/richieste/:id/rifiuta` (`autentica` + `soloResponsabili`): 404 se non esiste, 400 se non è "In attesa". Altrimenti impostano `stato`, `data_valutazione = CURRENT_DATE` e `utente_valutazione_id` (dal token), e rispondono 200 `{ Successo: "Richiesta approvata" }` / `{ Successo: "Richiesta rifiutata" }`.
+- `GET /api/statistiche` (`autentica` + `soloResponsabili`): richieste approvate raggruppate per dipendente e mese.
+  - Filtri facoltativi in query string: `utente_id` e `mese` (`AAAA-MM`). Le query restano parametrizzate: la stringa SQL viene costruita con `$1`, `$2`… in base a quanti filtri ci sono.
+  - Risponde `[{ richiedente, giorni, mese }]`, dove `richiedente` è "nome cognome" e `giorni` arriva come stringa (`SUM` restituisce un `bigint`).
+  - Scelte fatte: si contano i **giorni di calendario** (`data_fine - data_inizio + 1`). Una richiesta a cavallo di due mesi viene contata tutta nel **mese di `data_inizio`**.
 - `GET /api/esempi/hash?testo=` restituisce md5, sha256 e bcrypt. `POST /api/esempi/hash/verifica` riceve `{ testo, hash }` e risponde `{ valido }`.
 - Resti del vecchio playground ancora presenti:
   - `/api/esempi/ricerca-sicura` e `/ricerca-vulnerabile` usano le colonne `id` e `attivo`, che non esistono più, quindi sono rotte rotte;
@@ -62,6 +80,7 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 - Se trovi problemi fuori dal compito, segnalali senza correggerli.
 - App didattica per la simulazione dell'esame di Stato: usa solo ciò che è stato fatto a lezione. Niente `CREATE INDEX` nello schema (scelta dell'utente); va bene che l'app non sia perfetta.
 - Non fare commit se l'utente non lo chiede.
+- **Frontend: il codice lo scrive l'utente.** Spiega i passi, al massimo con frammenti brevi, e rileggi il codice quando te lo chiede. Non creare né modificare file in `frontend/`.
 
 ## Problemi aperti (segnalati, non ancora corretti)
 
@@ -71,14 +90,16 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 - bcrypt usa solo i primi 72 byte della password e non c'è un limite massimo di lunghezza.
 - Il commento in testa a `server.js` descrive ancora la vecchia tabella `utenti` del playground (colonne `id` e `attivo`).
 - Le colonne `DATE` vengono restituite come `Date` JS e serializzate in UTC: `2026-12-23` diventa `"2026-12-22T23:00:00.000Z"` (vale per tutte le rotte delle richieste).
-- Sul sistema c'è Node 22.23, non Node 24.
+- `:id` non viene validato in `PUT`, `DELETE`, `approva` e `rifiuta`: con `/api/richieste/abc` PostgreSQL dà `22P02` e l'API risponde 500. Lo stesso succede in `/api/statistiche?utente_id=abc`.
+- `/api/statistiche` raggruppa per `nome, cognome`: due dipendenti omonimi verrebbero sommati insieme. Inoltre non restituisce l'`utente_id` e non ha un `ORDER BY`.
+- Le risposte di successo usano la chiave `Successo` con la maiuscola, mentre gli errori usano `errore`. Nel codice ci sono anche variabili assegnate e mai usate (`risposta`, `risultato`).
+- `api/mock/mock.http` non ha ancora le richieste per `approva` e `rifiuta`.
 
 ## Prossimi passi (dalla traccia)
 
 1. ~~`GET /api/categorie`~~ (fatto).
-2. CRUD su `/api/richieste` (GET e POST fatti, mancano `PUT` e `DELETE /:id`):
-   - il dipendente vede, crea, modifica ed elimina solo le proprie richieste, e solo se "In attesa";
-   - il responsabile vede tutte le richieste e può cancellare anche quelle approvate.
-3. `GET /api/richieste/da-approvare` (fatto), `PUT /api/richieste/:id/approva` e `PUT /api/richieste/:id/rifiuta`, con `autentica` + `soloResponsabili`. Vanno impostati `data_valutazione` e `utente_valutazione_id`.
-4. Endpoint delle statistiche (solo responsabili): giorni approvati per dipendente e mese, con filtri opzionali. Prima va deciso con l'utente se contare i giorni di calendario o quelli lavorativi e come trattare le richieste a cavallo di due mesi.
-5. Poi: frontend CSR, eventuale Swagger, deployment.
+2. ~~CRUD su `/api/richieste`~~ (fatto).
+3. ~~`da-approvare`, `approva`, `rifiuta`~~ (fatto).
+4. ~~Endpoint delle statistiche~~ (fatto: giorni di calendario, richieste a cavallo di due mesi contate nel mese di inizio).
+5. Frontend CSR: login e registrazione fatti. Mancano la pagina principale dopo il login (con `navigate`), le pagine protette (controllo del token, `Navigate` a `/login`), le pagine delle richieste, delle approvazioni e delle statistiche.
+6. Poi: eventuale Swagger e deployment. Con React Router, il server di produzione deve rispondere con `index.html` anche per percorsi come `/registrazione`.

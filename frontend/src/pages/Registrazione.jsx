@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Link, useNavigate } from "react-router";
 
 function Registrazione() {
   const [nome, setNome] = useState("");
@@ -13,6 +14,7 @@ function Registrazione() {
   const [successo, setSuccesso] = useState(false);
   const [errore, setErrore] = useState("");
   const [caricamento, setCaricamento] = useState(false);
+  const navigate = useNavigate();
 
   async function gestioneInvio(e) {
     e.preventDefault();
@@ -60,7 +62,9 @@ function Registrazione() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             Registrazione avvenuta con successo, vai al login per accedere.
-            <Button className="w-fit">Login</Button>
+            <Button className="w-fit" onClick={() => navigate("/login")}>
+              Login
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -130,6 +134,9 @@ function Registrazione() {
             <Button type="submit" disabled={caricamento}>
               Registrati
             </Button>
+            <Link to="/login" className="hover:underline">
+              Sei già registrato? Accedi
+            </Link>
           </form>
         </CardContent>
       </Card>

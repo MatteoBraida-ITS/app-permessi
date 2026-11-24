@@ -38,4 +38,7 @@ Legenda della colonna **Stato**: ✅ implementato, ⏳ da fare.
 
 | Metodo | URL                | Che cosa fa                                        | Successo | Stato |
 | ------ | ------------------ | -------------------------------------------------- | -------- | ----- |
-| GET    | `/api/statistiche` | Giorni approvati per dipendente e mese, con filtri | 200      | ⏳    |
+| GET    | `/api/statistiche` | Giorni approvati per dipendente e mese, con filtri | 200      | ✅    |
+
+Filtri facoltativi: `?utente_id=4`, `?mese=2026-10`, anche insieme.
+Si contano i giorni di calendario, e una richiesta a cavallo di due mesi viene contata tutta nel mese di `data_inizio`.
