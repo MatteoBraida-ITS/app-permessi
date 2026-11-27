@@ -4,6 +4,7 @@ import { Navigate, Routes, Route } from "react-router";
 import RottaProtetta from "@/components/RottaProtetta";
 import Layout from "@/components/Layout";
 import Home from "@/pages/Home";
+import NuovaRichiesta from "@/pages/NuovaRichiesta";
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         }
       >
         <Route path="/home" element={<Home />}></Route>
+        <Route path="/richieste/nuova" element={<NuovaRichiesta />}></Route>
       </Route>
     </Routes>
   );

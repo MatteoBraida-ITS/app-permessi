@@ -36,16 +36,21 @@ function Layout() {
 
   return (
     <div>
-      <header className="flex justify-between">
-        <h1>App permessi</h1>
-        <Link to="/home">Home</Link>
-        <div className="flex justify-between">
+      <header className="flex justify-between items-center border-b px-6 py-3">
+        <h1 className="text-lg font-semibold">App permessi</h1>
+        <nav className="flex gap-4">
+          <Link className="text-sm hover:underline" to="/home">
+            Home
+          </Link>
+        </nav>
+        <div className="flex items-center gap-3">
           {utente && (
-            <span>
+            <span className="text-sm text-muted-foreground">
               {utente.nome} {utente.cognome}
             </span>
           )}
           <Button
+            variant="outline"
             onClick={() => {
               localStorage.removeItem("token");
               navigate("/login", { replace: true });
@@ -55,8 +60,8 @@ function Layout() {
           </Button>
         </div>
       </header>
-      {errore && <p className="text-sm text-destructive">{errore}</p>}
-      <main>
+      <main className="mx-auto max-w-5xl p-6">
+        {errore && <p className="text-sm text-destructive">{errore}</p>}
         {utente ? <Outlet context={utente} /> : <p>Caricamento...</p>}
       </main>
     </div>
