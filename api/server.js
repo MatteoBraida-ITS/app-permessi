@@ -419,12 +419,11 @@ app.get("/api/utenti/conteggio", (req, res) => {
 
 app.get("/api/categorie", autentica, async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT categoria_id, descrizione FROM categorie_permesso",
+    `SELECT categoria_id, descrizione FROM categorie_permesso
+     ORDER BY descrizione`,
   );
 
-  res.json({
-    rows,
-  });
+  res.json(rows);
 });
 
 // ---------------------------------------------------------------
