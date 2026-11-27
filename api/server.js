@@ -21,6 +21,14 @@ import { type } from "node:os";
 
 const { Pool } = pg;
 
+// Le colonne DATE (data_inizio, data_fine, data_richiesta, data_valutazione)
+// vengono restituite come stringhe "AAAA-MM-GG", così come sono nel database.
+// Senza questa riga pg le converte in oggetti Date alla mezzanotte locale,
+// e res.json() le scrive in UTC: 2026-12-23 diventerebbe
+// "2026-12-22T23:00:00.000Z", cioè il giorno prima.
+// Vale solo per DATE: TIMESTAMPTZ (data_creazione) resta un Date.
+pg.types.setTypeParser(pg.types.builtins.DATE, (valore) => valore);
+
 const PORT = process.env.PORT ?? 3000;
 const ESEMPI_VULNERABILI = process.env.ESEMPI_VULNERABILI === "true";
 
