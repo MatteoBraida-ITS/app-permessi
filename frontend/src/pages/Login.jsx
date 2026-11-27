@@ -3,13 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errore, setErrore] = useState("");
   const [caricamento, setCaricamento] = useState(false);
+  const navigate = useNavigate();
 
   async function gestioneInvio(e) {
     e.preventDefault();
@@ -29,7 +30,7 @@ function Login() {
         setErrore(dati.errore);
       } else {
         localStorage.setItem("token", dati.token);
-        console.log(dati.utente);
+        navigate("/home");
       }
     } catch {
       setErrore("Server non raggiungibile");

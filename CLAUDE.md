@@ -16,10 +16,15 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 - `api/mock/mock.http`: richieste per l'estensione REST Client di VS Code (`humao.rest-client`).
   - Variabili (`@baseUrl`, `@email`, `@password`, `@token`) tutte in testa: niente righe tra il corpo di una richiesta e il `###` successivo, perché REST Client le spedirebbe nel corpo.
   - Contiene health, register (email con `{{$timestamp}}`), login (`# @name login`, poi `@token = {{login.response.body.token}}`), `/utenti/me` con e senza token, hash e verifica bcrypt (`# @name hashEsempio`).
-- `frontend/`: React 19 (JS) con Vite 8, Tailwind CSS v4, shadcn/ui (button, input, label, card) e `react-router` 8.5 in modalità dichiarativa. Si usa **pnpm**. Si avvia con `cd frontend && pnpm dev`, porta 5173.
+- `frontend/`: React 19 (JS) con Vite 8, Tailwind CSS v4, shadcn/ui (button, input, label, card, table) e `react-router` 8.5 in modalità dichiarativa. Si usa **pnpm**. Si avvia con `cd frontend && pnpm dev`, porta 5173.
   - Alias `@` → `src` (`vite.config.js` e `jsconfig.json`). Proxy `/api` → `http://localhost:3000`, quindi le `fetch` usano percorsi relativi (`/api/...`).
-  - `main.jsx` avvolge `<App />` in `BrowserRouter`. `App.jsx` contiene `Routes`: `/` → `Navigate` a `/login`, `/login`, `/registrazione`.
-  - `pages/Login.jsx`: `POST /api/utenti/login`, salva il token in `localStorage` (chiave `token`). Dopo il login per ora fa solo `console.log`, perché manca una pagina di destinazione.
+  - `main.jsx` avvolge `<App />` in `BrowserRouter`. `App.jsx` contiene `Routes`: `/` → `Navigate` a `/login`, `/login`, `/registrazione` e una rotta genitore senza `path` con `element={<RottaProtetta><Layout /></RottaProtetta>}`, che contiene `/home` → `pages/Home.jsx`.
+  - `components/RottaProtetta.jsx`: riceve `children`; se in `localStorage` non c'è `token` restituisce `<Navigate to="/login" replace />`, altrimenti `children`. Non verifica la validità del token (lo fa il `Layout`).
+  - `components/Layout.jsx`: in un `useEffect` (`[navigate]`) chiama `GET /api/utenti/me` con `Authorization: Bearer`. Con 200 salva l'utente nello stato `utente`, con 401 cancella il token e fa `navigate("/login", { replace: true })`, con altri errori mostra `dati.errore`. Header con titolo, `<Link to="/home">`, nome e cognome, pulsante Esci (stessa logica del 401). Sotto, `<main>` con `{utente ? <Outlet context={utente} /> : <p>Caricamento...</p>}`: le pagine figlie ricevono sempre un utente valido con `useOutletContext()`.
+  - `pages/Home.jsx`: legge l'utente con `useOutletContext()` e restituisce `components/DashboardResponsabile.jsx` o `components/DashboardDipendente.jsx` in base a `utente.ruolo`. `DashboardResponsabile` mostra solo un `<h2>`.
+  - `lib/fetchConToken.js`: `fetchConToken(percorso, opzioni = {})` fa la `fetch` con `Content-Type: application/json` e `Authorization: Bearer`; con 401 cancella il token e fa `window.location.replace("/login")`. Restituisce la `response`. Non va usata in login e registrazione.
+  - `components/DashboardDipendente.jsx`: carica `GET /api/richieste` con `fetchConToken` in un `useEffect`. Se c'è `errore` restituisce solo il messaggio, se l'elenco è vuoto "Nessuna Richiesta", altrimenti titolo e `Table` di shadcn (Dal, Al, Categoria, Motivazione, Stato) con `richieste.map` e `key={r.richiesta_id}`. Gli early return impediscono di mostrare altro (es. pulsante "Nuova richiesta") quando l'elenco è vuoto.
+  - `pages/Login.jsx`: `POST /api/utenti/login`, salva il token in `localStorage` (chiave `token`) e poi `navigate("/home")` con `useNavigate`.
   - `pages/Registrazione.jsx`: `POST /api/utenti/register`. Controlli lato client: `required`, `maxLength`, password di almeno 8 caratteri, conferma password. In caso di successo mostra una card con un pulsante che usa `useNavigate` per andare a `/login`.
   - Gli errori dell'API si mostrano con `dati.errore`. ESLint segnala 4 errori nei file generati da shadcn in `components/ui/`: non vanno toccati.
 - `docs/`: spiegazioni per gli studenti, che conoscono le basi dei database.
@@ -39,6 +44,7 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 
 ## API già presenti (`api/server.js`)
 
+- In testa, `pg.types.setTypeParser(pg.types.builtins.DATE, (valore) => valore)`: le colonne `DATE` (`data_inizio`, `data_fine`, `data_valutazione`) arrivano come stringhe `"AAAA-MM-GG"`. I `TIMESTAMPTZ` (`data_richiesta`, `data_creazione`) restano `Date` e vengono serializzati in UTC (`"2026-11-02T16:45:00.000Z"`): nel frontend vanno formattati, ad esempio con `toLocaleDateString("it-IT")`.
 - Middleware `logChiamate`, registrato prima di `express.json()`: una riga per chiamata con data, metodo, percorso, stato, durata e utente. Non registra mai query string, corpo o header.
 - Middleware `autentica`: legge `Authorization: Bearer`, verifica il token (solo HS256) e imposta `req.utente = { id, ruolo }`. Altrimenti 401 ("Token mancante" / "Token scaduto" / "Token non valido") con `WWW-Authenticate`.
 - `richiediRuolo(...ruoli)` e `soloResponsabili`: da usare dopo `autentica`; 403 se il ruolo non è ammesso, 401 se manca `req.utente`.
@@ -89,11 +95,11 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 - `/api/esempi/hash` con `?testo=a&testo=b` va in 500.
 - bcrypt usa solo i primi 72 byte della password e non c'è un limite massimo di lunghezza.
 - Il commento in testa a `server.js` descrive ancora la vecchia tabella `utenti` del playground (colonne `id` e `attivo`).
-- Le colonne `DATE` vengono restituite come `Date` JS e serializzate in UTC: `2026-12-23` diventa `"2026-12-22T23:00:00.000Z"` (vale per tutte le rotte delle richieste).
 - `:id` non viene validato in `PUT`, `DELETE`, `approva` e `rifiuta`: con `/api/richieste/abc` PostgreSQL dà `22P02` e l'API risponde 500. Lo stesso succede in `/api/statistiche?utente_id=abc`.
 - `/api/statistiche` raggruppa per `nome, cognome`: due dipendenti omonimi verrebbero sommati insieme. Inoltre non restituisce l'`utente_id` e non ha un `ORDER BY`.
 - Le risposte di successo usano la chiave `Successo` con la maiuscola, mentre gli errori usano `errore`. Nel codice ci sono anche variabili assegnate e mai usate (`risposta`, `risultato`).
 - `api/mock/mock.http` non ha ancora le richieste per `approva` e `rifiuta`.
+- In `server.js` ci sono due import inutilizzati: `error` da `node:console` e `type` da `node:os`.
 
 ## Prossimi passi (dalla traccia)
 
@@ -101,5 +107,5 @@ La traccia completa è in `traccia-esame.md`. Prima di modificare qualcosa leggi
 2. ~~CRUD su `/api/richieste`~~ (fatto).
 3. ~~`da-approvare`, `approva`, `rifiuta`~~ (fatto).
 4. ~~Endpoint delle statistiche~~ (fatto: giorni di calendario, richieste a cavallo di due mesi contate nel mese di inizio).
-5. Frontend CSR: login e registrazione fatti. Mancano la pagina principale dopo il login (con `navigate`), le pagine protette (controllo del token, `Navigate` a `/login`), le pagine delle richieste, delle approvazioni e delle statistiche.
+5. Frontend CSR: login, registrazione, `RottaProtetta`, `Layout` e `Home` divisa per ruolo fatti. Prossimo: in `DashboardDipendente` (elenco fatto) mancano elimina, nuova e modifica, poi `DashboardResponsabile` (da approvare, approva/rifiuta) e la pagina delle statistiche (solo responsabili).
 6. Poi: eventuale Swagger e deployment. Con React Router, il server di produzione deve rispondere con `index.html` anche per percorsi come `/registrazione`.
